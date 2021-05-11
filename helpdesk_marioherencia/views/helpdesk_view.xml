@@ -37,7 +37,7 @@
                             <field name="date_limit"/>
                         </group>
                         <group>
-                            <field name="user_id"/>
+                            <field name="user_id" options="{'no_create': True, 'no_open': True}"/>
                             <field name="assigned"/>
                             <field name="ticket_qty"/>
                             <field name="time" widget="float_time"/>
@@ -52,10 +52,22 @@
                                 name="create_tag"
                                 type="object"/>
                             </group>
-                            <field name="tag_ids"/>
+                            <field name="tag_ids" context="{'form_view_ref':'helpdesk_marioherencia.view_helpdesk_ticket_tag_simple_form'}"
+                            domain="[('public', '=', True)]"/>
                         </page>
                         <page string="Actions">
-                            <field name="action_ids"/>
+                            <field name="action_ids" context="{'default_date':date}">
+                                <tree editable="bottom">
+                                    <field name="name"/>
+                                    <field name="date"/>
+                                </tree>
+                                <form>
+                                    <group name="action">
+                                        <field name="name"/>
+                                        <field name="date"/>
+                                    </group>
+                                </form>
+                            </field>
                         </page>
                         <page string="Quality">
                             <group>

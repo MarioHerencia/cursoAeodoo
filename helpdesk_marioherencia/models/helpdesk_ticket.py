@@ -1,4 +1,6 @@
-from odoo import models, fields, api
+from odoo import models, fields, api, _
+from odoo.exceptions import ValidationError
+from datetime import timedelta
 
 class HelpdeskTicketAction(models.Model):
     _name = 'helpdesk.ticket.action'
@@ -15,17 +17,25 @@ class HelpdeskTicketTag(models.Model):
     _description = 'Tag'
 
     name = fields.Char()
+    public = fields.Boolean()    
     ticket_ids = fields.Many2many(
         comodel_name='helpdesk.ticket',
         relation='helpdesk_ticket_tag_rel',
         column1='tag_id',
         column2='ticket_id',
-        string='Tags')
+        string='Tickets')
 
+    @api.model
+    def cron_delete_tag(self):
+        tickets = self.search([('ticket_ids', '=', False)])
+        tickets.unlink()
 
 class HelpdeskTicket(models.Model):
     _name = 'helpdesk.ticket'
     _description='Ticket'
+
+    def _date_default_today(self):
+        return fields.Date.today()
 
     tag_ids = fields.Many2many(
         comodel_name='helpdesk.ticket.tag',
@@ -45,7 +55,8 @@ class HelpdeskTicket(models.Model):
         string='Description',
         translate=True)
     date = fields.Date(
-        string='Date')
+        string='Date',
+        default=_date_default_today)
     state = fields.Selection(
          [('nuevo', 'Nuevo'), 
          ('asignado', 'Asignado'), 
@@ -71,7 +82,7 @@ class HelpdeskTicket(models.Model):
     
     user_id = fields.Many2one(
         comodel_name='res.users',
-        strings='Assigned to')
+        string='Assigned to')
 
     def asignar(self):
         self.ensure_one()
@@ -118,17 +129,40 @@ class HelpdeskTicket(models.Model):
     def create_tag(self):
         self.ensure_one()
 
-        self.write({
-            'tag_ids': [(0,0, {'name': self.tag_name})]
-        })
+        # self.write({
+        #     'tag_ids': [(0,0, {'name': self.tag_name})]
+        # })
 
+        # self.tag_name = False
+        # tag = self.env['helpdesk.ticket.tag'].create({
+        #    'name': self.tag_name
+        # })
+
+        # tag = self.env['helpdesk.ticket.tag'].create({
+        #     'name': self.tag_name,
+        #     'ticket_ids': [(6, 0, self.ids)]
+        # })
+
+        # self.write({
+        #     'tag_ids': [(4,tag.id, 0)]
+        # })
+        action = self.env.ref('helpdesk_marioherencia.action_new_tag').read()[0]
+        action['context'] = {
+            'default_name': self.tag_name,
+            'default_ticket_ids': [(6, 0, self.ids)]
+        }
+        # action['res_id'] = tag.id
         self.tag_name = False
-      #  tag = self.env['helpdesk.ticket.tag'].create({
-      #      'name': self.tag_name
-      #  })
+        return action
 
-      #  self.write({
-      #      'tag_ids': [(4,tag.id, 0)]
-      #  })
-        
-        
+
+    @api.constrains('time')
+    def _time_positive(self):
+        for ticket in self:
+            if ticket.time and ticket.time < 0:
+                raise ValidationError(_("The time must be positive."))
+
+    @api.onchange('date')
+    def _onchange_date(self):
+        date_limit = self.date and self.date + timedelta(days=1)
+        self.date_limit = date_limit
