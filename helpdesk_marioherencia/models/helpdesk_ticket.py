@@ -8,6 +8,8 @@ class HelpdeskTicketAction(models.Model):
 
     name = fields.Char()
     date = fields.Date()
+    time = fields.Float(
+        string='Time')
     ticket_id = fields.Many2one(
         comodel_name='helpdesk.ticket',
         string='Ticket')
@@ -67,7 +69,10 @@ class HelpdeskTicket(models.Model):
         string='State',
         default='nuevo') 
     time = fields.Float(
-        string='Time') 
+        string='Time',
+        compute='_get_time',
+        inverse='_set_time',
+        search='_search_time')
     assigned = fields.Boolean(
         string='Assigned',
         compute='_compute_assigned') 
@@ -83,6 +88,24 @@ class HelpdeskTicket(models.Model):
     user_id = fields.Many2one(
         comodel_name='res.users',
         string='Assigned to')
+
+    @api.depends('action_ids.time')
+    def _get_time(self):
+        for record in self:
+            record.time = sum(record.action_ids.mapped('time'))
+
+    def _set_time(self):
+        for record in self:
+            if record.time:
+                time_now = sum(record.action_ids.mapped('time'))
+                next_time = record.time - time_now
+                if next_time:
+                    data = {'name': '/', 'time': next_time, 'date': fields.Date.today(), 'ticket_id': record.id}
+                    self.env['helpdesk.ticket.action'].create(data)
+
+    def _search_time(self, operator, value):
+        actions = self.env['helpdesk.ticket.action'].search([('time', operator, value)])
+        return [('id', 'in', actions.mapped('ticket_id').ids)]
 
     def asignar(self):
         self.ensure_one()
